@@ -6,6 +6,8 @@ boolean synchro_Done =false;
 boolean receiveData_Done =false;
 int decimalValue=800; //just for initialisiation (gets later dynamically calculated)
 boolean crc_check_value=false; //Flag for CRC calculation
+int accmuluatedLength = 0;
+bool startPacket = false;
 
 
 void setup() {
@@ -101,7 +103,7 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  delay(100);
+  delay(30);
   String data="0";
   int sensorValue = analogRead(A0);
   float voltage = sensorValue * (5.0 / 1023.0);
@@ -133,7 +135,8 @@ void loop() {
 
     if (receiveData_Done==true)
     {
-      state=0; 
+      state = 0; 
+      dataBits = "";
     }
   }
 }
@@ -144,7 +147,9 @@ void lookForSynchro(String bit)
   String preambel="1010101111111111";
   sequence.concat(bit);
   sequence.remove(0,1);
+
   Serial.println("Sequence: "+sequence);
+
   if (sequence==preambel)
   {
     Serial.println("Synchro done");
@@ -164,13 +169,33 @@ void receiveData(String bit)
     dataBits.toCharArray(char_array, 17);
     decimalValue= strtol(char_array, NULL, 2);//function for converting string into long data type integer
     Serial.println(decimalValue);
+    dataBits.remove(0, 16);
+    
+    startPacket = true;
 
-  }
-
-  if (dataBits.length() > 16 && dataBits.length() % 8 == 0) {
+    return;
+  } 
+  
+  if (dataBits.length() % 8 == 0 && startPacket) {
     char buf;
-    dataBits.toCharArray(buf, 1);
+    Serial.println(dataBits);
+
+    int charIdx = binToChar(dataBits);
+    buf = (char) charIdx;
     Serial.println(buf);
+
+    if (buf < 'A' || buf > 'Z') {
+      restartTransmit();
+      return;
+    }
+
+    dataBits.remove(0, 8);
+    accmuluatedLength += 8;
+
+    if (accmuluatedLength == decimalValue) {
+      restartTransmit();
+    }
+
     return;
   }
 
@@ -269,4 +294,21 @@ void checkCRC(String dataFrame)
     receiveData_Done=true;
   }
    
+}
+
+int binToChar(String binary) {
+  int result = 0;
+  for (int i = 0 ; i < 8; i++) {
+    result *= 2;
+    if (binary[i] == '1') {
+      result += 1;
+    }
+  }
+  return result;
+}
+
+void restartTransmit() {
+  receiveData_Done = true;
+  startPacket = false;
+  accmuluatedLength = 0;
 }
