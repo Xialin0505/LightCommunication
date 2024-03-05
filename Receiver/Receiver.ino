@@ -163,8 +163,15 @@ void receiveData(String bit)
     char char_array[17];  // Prepare the character array (the buffer)
     dataBits.toCharArray(char_array, 17);
     decimalValue= strtol(char_array, NULL, 2);//function for converting string into long data type integer
-    //Serial.println(decimalValue);
+    Serial.println(decimalValue);
 
+  }
+
+  if (dataBits.length() > 16 && dataBits.length() % 8 == 0) {
+    char buf;
+    dataBits.toCharArray(buf, 1);
+    Serial.println(buf);
+    return;
   }
 
   if(dataBits.length()==decimalValue+16+8) //Stop dynamically at the end of the message; +16 because 2 bytes frame for data message length; +8 for last byte CRC

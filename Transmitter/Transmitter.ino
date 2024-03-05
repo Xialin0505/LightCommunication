@@ -21,13 +21,14 @@ void int2bin(unsigned integer, int n)
 {  
     for (int i=0;i<n;i++)   
     {
-    //binary[i] = (integer & (int)1<<(n-i-1)) ? '1' : '0';
-    //binary[n]='\0';
+    // binary[i] = (integer & (int)1<<(n-i-1)) ? '1' : '0';
+    // binary[n]='\0';
     result[counter]= (integer & (int)1<<(n-i-1)) ? '1' : '0';
-    result[36]='\0';
+    // preamble 20 + data length field 16 = 36
     counter++;
     }
     
+    result[36]='\0';
 }
 
 void loop() {
