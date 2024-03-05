@@ -1,6 +1,7 @@
 #define LED 7
 
 char result[500]={'1','0','1','0','1','0','1','1','1','1','1','1','1','1','1','1'};
+const char original[500] = {'1','0','1','0','1','0','1','1','1','1','1','1','1','1','1','1'};
 int counter=16;
 
 void setup() {
@@ -52,4 +53,6 @@ void loop() {
     }
     pos++;
   }
+  counter = 16;
+  memcpy(result, original, sizeof(char)*16);
 }
