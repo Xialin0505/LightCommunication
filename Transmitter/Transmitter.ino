@@ -1,7 +1,7 @@
 #define LED 7
 
 char result[500]={'1','0','1','0','1','0','1','1','1','1','1','1','1','1','1','1'};
-int counter=20;
+int counter=16;
 
 void setup() {
   // put your setup code here, to run once:
@@ -28,7 +28,7 @@ void int2bin(unsigned integer, int n)
     counter++;
     }
     
-    result[36]='\0';
+    result[32]='\0';
 }
 
 void loop() {
