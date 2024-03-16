@@ -19,6 +19,7 @@ void setup() {
   clock_prescale_set(clock_div_1);
 #endif
   pixels.begin();
+  // pixels.setBrightness(10);
 }
 
 void chartobin(char c)
@@ -44,6 +45,21 @@ void int2bin(unsigned integer, int n)
     result[32]='\0';
 }
 
+void sign0(){
+  pixels.clear();
+  for(int i=0; i<10; i++) { // For each pixel...
+    pixels.setPixelColor(i, pixels.Color(255, 255, 255));
+  }
+  pixels.show();
+  return;
+}
+
+void sign1(){
+  pixels.clear();
+  pixels.show();
+  return;
+}
+
 void loop() {
   // put your main code here, to run repeatedly:
   // int pos = 0;
@@ -67,9 +83,11 @@ void loop() {
   // }
   // counter = 16;
   // memcpy(result, original, sizeof(char)*16);
-
-  pixels.clear()
-
+  sign0();
+  delay(10);
+  sign1();
+  delay(10);
 }
+
 
 
