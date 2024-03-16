@@ -3,15 +3,14 @@
  #include <avr/power.h> // Required for 16 MHz Adafruit Trinket
 #endif
 #define PIN        6
-#define NUMPIXELS 16
-Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+#define NUMPIXELS 14
+Adafruit_NeoPixel pixels(14, PIN, NEO_GRB + NEO_KHZ800);
 #define DELAYVAL 500
-
-#define LED 7
 
 char result[500]={'1','0','1','0','1','0','1','1','1','1','1','1','1','1','1','1'};
 const char original[500] = {'1','0','1','0','1','0','1','1','1','1','1','1','1','1','1','1'};
 int counter=16;
+uint32_t colorcol[4] = {pixels.Color(0,   0,   0,255),pixels.Color(255,   0,   0),pixels.Color(0,   255,   0),pixels.Color(0,   0,   255)};
 
 void setup() {
   // put your setup code here, to run once:
@@ -19,7 +18,7 @@ void setup() {
   clock_prescale_set(clock_div_1);
 #endif
   pixels.begin();
-  // pixels.setBrightness(10);
+  pixels.setBrightness(100);
 }
 
 void chartobin(char c)
@@ -45,16 +44,27 @@ void int2bin(unsigned integer, int n)
     result[32]='\0';
 }
 
-void sign0(){
+uint32_t colortype(int colorindex){
+  
+}
+
+void colorset(int colorindex){
+  for(int i=0; i<14;i++){
+    pixels.setPixelColor(i,colorcol[colorindex]);
+  }
+}
+
+void signon(int colornum){
   pixels.clear();
-  for(int i=0; i<10; i++) { // For each pixel...
-    pixels.setPixelColor(i, pixels.Color(255, 255, 255));
+  // colorset(0);
+  for(int i=0; i<14; i++) { // For each pixel...
+    pixels.setPixelColor(i,pixels.Color(255, 255, 255));
   }
   pixels.show();
   return;
 }
 
-void sign1(){
+void signoff(){
   pixels.clear();
   pixels.show();
   return;
@@ -62,31 +72,32 @@ void sign1(){
 
 void loop() {
   // put your main code here, to run repeatedly:
-  // int pos = 0;
-  // char* msg = {"ABCDEFG"};
-  // int2bin(strlen(msg)*8, 16);
+  int pos = 0;
+  char* msg = {"ABCDEFG"};
+  int2bin(strlen(msg)*8, 16);
 
-  // for (int k = 0; k < strlen(msg); k++) {
-  //   chartobin(msg[k]);
-  // }
+  for (int k = 0; k < strlen(msg); k++) {
+    chartobin(msg[k]);
+  }
 
-  // int length = strlen(result);
-  // while (pos != length) {
-  //   delay(100);
-  //   if (result[pos] == '1') {
-  //     digitalWrite(LED, HIGH);
-  //   }
-  //   else if (result[pos] == '0') {
-  //     digitalWrite(LED, LOW);
-  //   }
-  //   pos++;
-  // }
-  // counter = 16;
-  // memcpy(result, original, sizeof(char)*16);
-  sign0();
-  delay(10);
-  sign1();
-  delay(10);
+  int length = strlen(result);
+  while (pos != length) {
+    delay(10);
+    if (result[pos] == '1') {
+      signon(0);
+    }
+    else if (result[pos] == '0') {
+      signoff();
+    }
+    pos++;
+  }
+  counter = 16;
+  memcpy(result, original, sizeof(char)*16);
+  // sign0();
+  // delay(10);
+  pixels.clear();
+  pixels.show();
+  delay(1000);
 }
 
 
