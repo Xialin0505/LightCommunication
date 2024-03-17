@@ -3,7 +3,7 @@
  #include <avr/power.h> // Required for 16 MHz Adafruit Trinket
 #endif
 #define PIN        6
-#define NUMPIXELS 14
+#define NUMPIXELS 1
 Adafruit_NeoPixel pixels(14, PIN, NEO_GRB + NEO_KHZ800);
 #define DELAYVAL 500
 
@@ -19,6 +19,7 @@ void setup() {
 #endif
   pixels.begin();
   pixels.setBrightness(100);
+  pixels.setAllWhite();
 }
 
 void chartobin(char c)
@@ -49,17 +50,19 @@ uint32_t colortype(int colorindex){
 }
 
 void colorset(int colorindex){
-  for(int i=0; i<14;i++){
-    pixels.setPixelColor(i,colorcol[colorindex]);
-  }
+  // for(int i=0; i<14;i++){
+  //   pixels.setPixelColor(i,colorcol[colorindex]);
+  // }
+
 }
 
 void signon(int colornum){
-  pixels.clear();
+  // pixels.clear();
   // colorset(0);
-  for(int i=0; i<14; i++) { // For each pixel...
-    pixels.setPixelColor(i,pixels.Color(255, 255, 255));
-  }
+  // for(int i=0; i<14; i++) { // For each pixel...
+  //   pixels.setPixelColor(i,pixels.Color(255, 255, 255));
+  // }
+  pixels.resetColor();
   pixels.show();
   return;
 }
@@ -82,7 +85,7 @@ void loop() {
 
   int length = strlen(result);
   while (pos != length) {
-    delay(10);
+    delay(50);
     if (result[pos] == '1') {
       signon(0);
     }
@@ -97,7 +100,7 @@ void loop() {
   // delay(10);
   pixels.clear();
   pixels.show();
-  delay(1000);
+  // delay(1000);
 }
 
 
