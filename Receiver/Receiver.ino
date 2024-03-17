@@ -1,116 +1,72 @@
+#define PHOTO_RESISTOR A0
+#define VCC 11
+#define READY_PIN 13
+#define SPEAKER_PIN A5
+
 //global variables
 unsigned int state;
 String sequence="0000000000000000";
 String dataBits="";
 boolean synchro_Done =false;
 boolean receiveData_Done =false;
-int decimalValue=800; //just for initialisiation (gets later dynamically calculated)
+
+int decimalValue = 800; //just for initialisiation (gets later dynamically calculated)
 boolean crc_check_value=false; //Flag for CRC calculation
+
 int accmuluatedLength = 0;
 bool startPacket = false;
 
+unsigned long delayInterval = 30;
+int baseline = 0;
+float window = 0.2;
+
+char messages[8];
+int messageidx = 0;
 
 void setup() {
-  //Timer Interrupt settings:
-  // TIMER SETUP- the timer interrupt allows preceise timed measurements of the reed switch
-  //for mor info about configuration of arduino timers see https://nerd-corner.com/arduino-timer-interrupts-how-to-program-arduino-registers/
-  
-  // cli();//stop all interrupts
-  // // turn on CTC mode
-  // TCCR1A = 0;// set entire TCCR1A register to 0
-  // TCCR1B = 0;// same for TCCR1B
-  // TCCR1B |= (1 << WGM12);
-  // // Set CS11 bit for prescaler 8
-  // TCCR1B |= (1 << CS11); 
-  
-  // //initialize counter value to 0;
-  // TCNT1  = 0;
-  
-  // // set timer count for 50Hz increments
-  // OCR1A = 20000000;// = (16*10^6) / (50*8) - 1  
-  
-  // // enable timer compare interrupt
-  // TIMSK1 |= (1 << OCIE1A);
-  
-  // sei();//allow interrupts
-  // //END TIMER SETUP
-  
+
   Serial.begin(9600);
 
   //Input Pin for the Solarplate
-  pinMode(A0,INPUT);
-  pinMode(11, OUTPUT);
+  pinMode(PHOTO_RESISTOR ,INPUT);
+  pinMode(VCC, OUTPUT);
+  pinMode(READY_PIN, OUTPUT);
+  digitalWrite(VCC, HIGH);
 
+  int sum = 0;
+  for (int i = 0; i < 100; i++) {
+    sum += analogRead(PHOTO_RESISTOR);
+  }
+
+  baseline = sum / 100;
   //initial State is looking for Synchronization sequence
   state = 0;
-  
+  Serial.println("set up done");
 }
 
 
-// ISR(TIMER1_COMPA_vect) {//Interrupt at frequency of 50 Hz
-//  //write your timer code here
-//  digitalWrite(11,HIGH);
-//  delay(15);
-//  digitalWrite(11,LOW);
-// }
-
-// ISR(TIMER1_COMPA_vect) 
-// {
-//   String data="0";
-//   int sensorValue = analogRead(A0);
-//   float voltage = sensorValue * (5.0 / 1023.0);
-
-//   if (voltage>=1) 
-//   {
-//     data="1";
-//     //Serial.println("1");
-//   }
-//   else
-//   {
-//     data="0";
-//     //Serial.println("0");
-//   }
-
-
-//   //This is the "real" loop function
-//   switch (state)
-//   {
-//     case 0:
-//       //looking for synchronization sequence
-//       synchro_Done=false;
-//       lookForSynchro(data);
-
-//       if (synchro_Done== true)
-//       {
-//         state=1;
-//       }
-//       break;
-//     case 1:
-//       //receive Data
-//       receiveData_Done =false;
-//       receiveData(data);
-
-//       if (receiveData_Done==true)
-//       {
-//         state=0; 
-//       }
-//       break;
-//   }
-
-  
-// }
-
-
 void loop() {
-  // put your main code here, to run repeatedly:
-  delay(30);
-  String data="0";
-  int sensorValue = analogRead(A0);
-  float voltage = sensorValue * (5.0 / 1023.0);
+  receiverMain();
+}
 
+void readMicrophone() {
+
+  int sensorValue = analogRead(PHOTO_RESISTOR);
+  Serial.println(sensorValue);
+}
+
+void receiverMain() {
+  // put your main code here, to run repeatedly:
+  delay(delayInterval);
+  String data="0";
+  int sensorValue = analogRead(PHOTO_RESISTOR);
+  //float voltage = sensorValue * (5.0 / 1023.0);
+  float voltage = sensorValue;
+
+  // Serial.println(baseline);
   // Serial.println(voltage);
 
-  if (voltage>=1) 
+  if (voltage >= baseline * (1 + window)) 
   {
     data="1";
     //Serial.println("1");
@@ -125,9 +81,10 @@ void loop() {
     synchro_Done=false;
     lookForSynchro(data);
 
-    if (synchro_Done== true)
+    if (synchro_Done == true)
     {
       state=1;
+      digitalWrite(READY_PIN, HIGH);
     }
   } else if (state == 1) {
     receiveData_Done = false;
@@ -141,7 +98,6 @@ void loop() {
   }
 }
 
-
 void lookForSynchro(String bit)
 {
   String preambel="1010101111111111";
@@ -152,7 +108,7 @@ void lookForSynchro(String bit)
 
   if (sequence==preambel)
   {
-    Serial.println("Synchro done");
+    // Serial.println("Synchro done");
     synchro_Done=true;  
     sequence="0000000000000000";
   }
@@ -162,37 +118,48 @@ void receiveData(String bit)
 {
   dataBits.concat(bit);
 
-  if (dataBits.length()==16)
+  if (dataBits.length() == 16)
   {
-    //Serial.println("data Bits: "+dataBits);
+    // Serial.println("data Bits: " + dataBits);
     char char_array[17];  // Prepare the character array (the buffer)
     dataBits.toCharArray(char_array, 17);
     decimalValue= strtol(char_array, NULL, 2);//function for converting string into long data type integer
     Serial.println(decimalValue);
-    dataBits.remove(0, 16);
     
     startPacket = true;
+    if (decimalValue < 0 || decimalValue % 8 != 0) {
+      restartTransmit();
+    }
+    dataBits = "";
 
     return;
   } 
   
   if (dataBits.length() % 8 == 0 && startPacket) {
     char buf;
-    Serial.println(dataBits);
+    // Serial.println(dataBits);
 
     int charIdx = binToChar(dataBits);
     buf = (char) charIdx;
-    Serial.println(buf);
+    messages[messageidx] = buf;
+    messageidx ++;
 
-    if (buf < 'A' || buf > 'Z') {
-      restartTransmit();
-      return;
+    if (messageidx >= 7) {
+      messages[7] = '\0';
+      Serial.println(messages);
+      messageidx = 0;
     }
+    // Serial.println(buf);
 
-    dataBits.remove(0, 8);
+//    if (buf < 'A' || buf > 'Z') {
+    //   restartTransmit();
+    //   return;
+    // }
+
+    dataBits = "";
     accmuluatedLength += 8;
 
-    if (accmuluatedLength == decimalValue) {
+    if (accmuluatedLength >= decimalValue) {
       restartTransmit();
     }
 
@@ -311,4 +278,5 @@ void restartTransmit() {
   receiveData_Done = true;
   startPacket = false;
   accmuluatedLength = 0;
+  messageidx = 0;
 }
