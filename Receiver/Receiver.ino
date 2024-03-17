@@ -3,22 +3,34 @@
 #define READY_PIN 13
 #define SPEAKER_PIN A5
 
+#define SYMBOL_LENGTH 10
+#define PACKET_LENGTH 50
+
+#define ERROR_RATE_WINDOW 2
+
+#define PI 3.1415926535897932384626433832795
+
 //global variables
 unsigned int state;
-String sequence="0000000000000000";
+String sequence = "00000000000";
+String preamble = "10100100111";
+int preamebl_length = 11;
+
 String dataBits="";
 boolean synchro_Done =false;
 boolean receiveData_Done =false;
 
 int decimalValue = 800; //just for initialisiation (gets later dynamically calculated)
-boolean crc_check_value=false; //Flag for CRC calculation
+boolean crc_check_value = false; //Flag for CRC calculation
 
 int accmuluatedLength = 0;
 bool startPacket = false;
 
-unsigned long delayInterval = 30;
+unsigned long delayInterval = 5;
 int baseline = 0;
 float window = 0.2;
+
+int prevVoltage = 0;
 
 char messages[8];
 int messageidx = 0;
@@ -58,39 +70,36 @@ void readMicrophone() {
 void receiverMain() {
   // put your main code here, to run repeatedly:
   delay(delayInterval);
-  String data="0";
+  String data = "0";
   int sensorValue = analogRead(PHOTO_RESISTOR);
-  //float voltage = sensorValue * (5.0 / 1023.0);
   float voltage = sensorValue;
 
-  // Serial.println(baseline);
   // Serial.println(voltage);
 
   if (voltage >= baseline * (1 + window)) 
   {
     data="1";
-    //Serial.println("1");
   }
   else
   {
     data="0";
-    //Serial.println("0");
   }
 
   if (state == 0) {
-    synchro_Done=false;
+    synchro_Done = false;
     lookForSynchro(data);
 
     if (synchro_Done == true)
     {
       state=1;
       digitalWrite(READY_PIN, HIGH);
+      dataBits = "";
     }
   } else if (state == 1) {
     receiveData_Done = false;
     receiveData(data);
 
-    if (receiveData_Done==true)
+    if (receiveData_Done == true)
     {
       state = 0; 
       dataBits = "";
@@ -100,17 +109,17 @@ void receiverMain() {
 
 void lookForSynchro(String bit)
 {
-  String preambel="1010101111111111";
   sequence.concat(bit);
   sequence.remove(0,1);
 
-  Serial.println("Sequence: "+sequence);
+  // Serial.println("Sequence: "+sequence);
+  digitalWrite(READY_PIN, LOW);
 
-  if (sequence==preambel)
+  if (isSync())
   {
-    // Serial.println("Synchro done");
-    synchro_Done=true;  
-    sequence="0000000000000000";
+    synchro_Done = true;  
+    // Serial.println("sync done");
+    sequence = "00000000000";
   }
 }
 
@@ -118,48 +127,56 @@ void receiveData(String bit)
 {
   dataBits.concat(bit);
 
-  if (dataBits.length() == 16)
-  {
-    // Serial.println("data Bits: " + dataBits);
-    char char_array[17];  // Prepare the character array (the buffer)
-    dataBits.toCharArray(char_array, 17);
-    decimalValue= strtol(char_array, NULL, 2);//function for converting string into long data type integer
-    Serial.println(decimalValue);
+  // if (dataBits.length() == 16)
+  // {
+  //   // Serial.println("data Bits: " + dataBits);
+  //   char char_array[17];  // Prepare the character array (the buffer)
+  //   dataBits.toCharArray(char_array, 17);
+  //   decimalValue= strtol(char_array, NULL, 2);//function for converting string into long data type integer
     
-    startPacket = true;
-    if (decimalValue < 0 || decimalValue % 8 != 0) {
-      restartTransmit();
-    }
-    dataBits = "";
+  //   // Serial.println(decimalValue);
+    
+  //   startPacket = true;
+  //   if (decimalValue < 0 || decimalValue % SYMBOL_LENGTH != 0) {
+  //     restartTransmit();
+  //   }
+  //   dataBits = "";
 
-    return;
-  } 
+  //   return;
+  // } 
   
-  if (dataBits.length() % 8 == 0 && startPacket) {
-    char buf;
+  if (dataBits.length() % SYMBOL_LENGTH == 0) {
+    // char buf;
     // Serial.println(dataBits);
-
+  
     int charIdx = binToChar(dataBits);
-    buf = (char) charIdx;
-    messages[messageidx] = buf;
-    messageidx ++;
+    analogWrite(SPEAKER_PIN, charIdx);
+    // Serial.println(charIdx);
 
-    if (messageidx >= 7) {
-      messages[7] = '\0';
-      Serial.println(messages);
-      messageidx = 0;
-    }
-    // Serial.println(buf);
+    int interpolate = (prevVoltage + charIdx) / 2;
+    if (interpolate != 1023 && interpolate != 0) {
+      analogWrite(SPEAKER_PIN, interpolate);
+      // Serial.println(interpolate);
+    } 
 
-//    if (buf < 'A' || buf > 'Z') {
-    //   restartTransmit();
-    //   return;
+    prevVoltage = charIdx;
+    
+    // Serial.println(charIdx);
+    
+    // buf = (char) charIdx;
+    // messages[messageidx] = buf;
+    // messageidx ++;
+
+    // if (messageidx >= 7) {
+    //   messages[7] = '\0';
+    //   Serial.println(messages);
+    //   messageidx = 0;
     // }
 
     dataBits = "";
-    accmuluatedLength += 8;
+    accmuluatedLength += SYMBOL_LENGTH;
 
-    if (accmuluatedLength >= decimalValue) {
+    if (accmuluatedLength >= PACKET_LENGTH) {
       restartTransmit();
     }
 
@@ -265,7 +282,7 @@ void checkCRC(String dataFrame)
 
 int binToChar(String binary) {
   int result = 0;
-  for (int i = 0 ; i < 8; i++) {
+  for (int i = 0 ; i < SYMBOL_LENGTH; i++) {
     result *= 2;
     if (binary[i] == '1') {
       result += 1;
@@ -280,3 +297,27 @@ void restartTransmit() {
   accmuluatedLength = 0;
   messageidx = 0;
 }
+
+int BitCount(unsigned int u)
+{
+    unsigned int uCount;
+
+    uCount = u - ((u >> 1) & 033333333333) - ((u >> 2) & 011111111111);
+    return ((uCount + (uCount >> 3)) & 030707070707) % 63;
+}
+
+bool isSync() {
+  int numError = 0;
+  for (int i = 0; i < preamebl_length; i++) {
+    int s_ind = sequence[i];
+    int p_ind = preamble[i];
+    int result = s_ind ^ p_ind;
+    numError += BitCount(result);
+  }
+  // Serial.println(numError);
+  if (numError <= ERROR_RATE_WINDOW) {
+    return true;
+  }
+  return false;
+}
+
