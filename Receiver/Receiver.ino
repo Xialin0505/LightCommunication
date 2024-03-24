@@ -1,3 +1,12 @@
+#include <Wire.h>
+#include "Adafruit_AS726x.h"
+
+//create the object
+Adafruit_AS726x ams;
+
+//buffer to hold raw values
+uint16_t sensorValues[AS726x_NUM_CHANNELS];
+
 #define PHOTO_RESISTOR A0
 #define VCC 11
 #define READY_PIN 13
@@ -38,6 +47,7 @@ int messageidx = 0;
 void setup() {
 
   Serial.begin(9600);
+  Wire.begin ();
 
   //Input Pin for the Solarplate
   pinMode(PHOTO_RESISTOR ,INPUT);
@@ -45,20 +55,77 @@ void setup() {
   pinMode(READY_PIN, OUTPUT);
   digitalWrite(VCC, HIGH);
 
+  // initialize digital pin LED_BUILTIN as an output.
+  // pinMode(LED_BUILTIN, OUTPUT);
+
+  //begin and make sure we can talk to the sensor
+  // if(!ams.begin()){
+  //   Serial.println("could not connect to sensor! Please check your wiring.");
+  //   while(1);
+  // }
+
   int sum = 0;
   for (int i = 0; i < 100; i++) {
     sum += analogRead(PHOTO_RESISTOR);
   }
+  
+  // ams.startMeasurement();
+  // int sum = 0;
+  // for (int i = 0; i < 100; i++) {
+  //   // measure();
+  //   sum += ams.readBlue();
+  // }
 
   baseline = sum / 100;
   //initial State is looking for Synchronization sequence
   state = 0;
+
   Serial.println("set up done");
 }
 
 
 void loop() {
   receiverMain();
+}
+
+void measure() {
+  ams.startMeasurement(); //begin a measurement
+  
+  //wait till data is available
+  bool rdy = false;
+  while(!rdy){
+    rdy = ams.dataReady();
+  }
+}
+
+void readAMS() {
+  //read the device temperature
+  uint8_t temp = ams.readTemperature();
+  
+  //ams.drvOn(); //uncomment this if you want to use the driver LED for readings
+  ams.startMeasurement(); //begin a measurement
+  
+  //wait till data is available
+  bool rdy = false;
+  while(!rdy){
+    rdy = ams.dataReady();
+  }
+
+  //ams.drvOff(); //uncomment this if you want to use the driver LED for readings
+
+  //read the values!
+  ams.readRawValues(sensorValues);
+  // ams.readCalibratedValues(calibratedValues);
+
+  // Serial.print("Temp: "); Serial.print(temp);
+  Serial.print(" Violet: "); Serial.print(sensorValues[AS726x_VIOLET]);
+  Serial.print(" Blue: "); Serial.print(sensorValues[AS726x_BLUE]);
+  Serial.print(" Green: "); Serial.print(sensorValues[AS726x_GREEN]);
+  Serial.print(" Yellow: "); Serial.print(sensorValues[AS726x_YELLOW]);
+  Serial.print(" Orange: "); Serial.print(sensorValues[AS726x_ORANGE]);
+  Serial.print(" Red: "); Serial.print(sensorValues[AS726x_RED]);
+  Serial.println();
+  Serial.println();
 }
 
 void readMicrophone() {
@@ -72,6 +139,9 @@ void receiverMain() {
   delay(delayInterval);
   String data = "0";
   int sensorValue = analogRead(PHOTO_RESISTOR);
+
+  // measure();
+  // int sensorValue = ams.readBlue();
   float voltage = sensorValue;
 
   // Serial.println(voltage);
