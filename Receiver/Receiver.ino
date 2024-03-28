@@ -12,6 +12,9 @@ uint16_t sensorValues[AS726x_NUM_CHANNELS];
 #define READY_PIN 13
 #define SPEAKER_PIN 8
 #define MICROPHONE_PIN 3
+#define FreqPIN A5
+#define ReadyPIN 7
+#define DurPIN A4
 
 #define SYMBOL_LENGTH 10
 
@@ -60,8 +63,12 @@ void setup() {
   pinMode(READY_PIN, OUTPUT);
   pinMode(SPEAKER_PIN, OUTPUT);
   pinMode(MICROPHONE_PIN, INPUT);
+  pinMode(ReadyPIN, OUTPUT);
+  pinMode(DurPIN, OUTPUT);
+  pinMode(FreqPIN, OUTPUT);
 
   digitalWrite(VCC, HIGH);
+  digitalWrite(ReadyPIN, LOW);
 
   // initialize digital pin LED_BUILTIN as an output.
   // pinMode(LED_BUILTIN, OUTPUT);
@@ -271,7 +278,10 @@ void receiveData(String bit)
       int dur = binToChar(dataBits, FREQUENCY_BIT, PACKET_LENGTH);
 
       Serial.println(freq);
+      analogWrite(FreqPIN, freq);
       Serial.println(dur);
+      analogWrite(DurPIN, dur);
+      digitalWrite(ReadyPIN, HIGH);
 
       int noteDuration = speed * dur;
       // tone(MICROPHONE_PIN, freq, noteDuration*.95);
@@ -401,6 +411,7 @@ void restartTransmit() {
   startPacket = false;
   accmuluatedLength = 0;
   messageidx = 0;
+  digitalWrite(ReadyPIN, LOW);
 }
 
 int BitCount(unsigned int u)
