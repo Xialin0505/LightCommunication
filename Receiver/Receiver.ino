@@ -2,7 +2,7 @@
 #include "Adafruit_AS726x.h"
 
 //create the object
-Adafruit_AS726x ams;
+// Adafruit_AS726x ams;
 
 //buffer to hold raw values
 uint16_t sensorValues[AS726x_NUM_CHANNELS];
@@ -10,12 +10,18 @@ uint16_t sensorValues[AS726x_NUM_CHANNELS];
 #define PHOTO_RESISTOR A0
 #define VCC 11
 #define READY_PIN 13
-#define SPEAKER_PIN A5
+#define SPEAKER_PIN 8
+#define MICROPHONE_PIN 3
 
 #define SYMBOL_LENGTH 10
-#define PACKET_LENGTH 50
 
 #define ERROR_RATE_WINDOW 2
+
+#define FREQUENCY_BIT 10
+#define DURATION_BIT 5
+#define PACKET_LENGTH 15
+
+#define speed 90
 
 #define PI 3.1415926535897932384626433832795
 
@@ -35,7 +41,7 @@ boolean crc_check_value = false; //Flag for CRC calculation
 int accmuluatedLength = 0;
 bool startPacket = false;
 
-unsigned long delayInterval = 5;
+unsigned long delayInterval = 20;
 int baseline = 0;
 float window = 0.2;
 
@@ -47,12 +53,14 @@ int messageidx = 0;
 void setup() {
 
   Serial.begin(9600);
-  Wire.begin ();
 
   //Input Pin for the Solarplate
   pinMode(PHOTO_RESISTOR ,INPUT);
   pinMode(VCC, OUTPUT);
   pinMode(READY_PIN, OUTPUT);
+  pinMode(SPEAKER_PIN, OUTPUT);
+  pinMode(MICROPHONE_PIN, INPUT);
+
   digitalWrite(VCC, HIGH);
 
   // initialize digital pin LED_BUILTIN as an output.
@@ -88,50 +96,63 @@ void loop() {
   receiverMain();
 }
 
-void measure() {
-  ams.startMeasurement(); //begin a measurement
+// void measure() {
+//   ams.startMeasurement(); //begin a measurement
   
-  //wait till data is available
-  bool rdy = false;
-  while(!rdy){
-    rdy = ams.dataReady();
-  }
-}
+//   //wait till data is available
+//   bool rdy = false;
+//   while(!rdy){
+//     rdy = ams.dataReady();
+//   }
+// }
 
-void readAMS() {
-  //read the device temperature
-  uint8_t temp = ams.readTemperature();
+// void readAMS() {
+//   //read the device temperature
+//   uint8_t temp = ams.readTemperature();
   
-  //ams.drvOn(); //uncomment this if you want to use the driver LED for readings
-  ams.startMeasurement(); //begin a measurement
+//   //ams.drvOn(); //uncomment this if you want to use the driver LED for readings
+//   ams.startMeasurement(); //begin a measurement
   
-  //wait till data is available
-  bool rdy = false;
-  while(!rdy){
-    rdy = ams.dataReady();
-  }
+//   //wait till data is available
+//   bool rdy = false;
+//   while(!rdy){
+//     rdy = ams.dataReady();
+//   }
 
-  //ams.drvOff(); //uncomment this if you want to use the driver LED for readings
+//   //ams.drvOff(); //uncomment this if you want to use the driver LED for readings
 
-  //read the values!
-  ams.readRawValues(sensorValues);
-  // ams.readCalibratedValues(calibratedValues);
+//   //read the values!
+//   ams.readRawValues(sensorValues);
+//   // ams.readCalibratedValues(calibratedValues);
 
-  // Serial.print("Temp: "); Serial.print(temp);
-  Serial.print(" Violet: "); Serial.print(sensorValues[AS726x_VIOLET]);
-  Serial.print(" Blue: "); Serial.print(sensorValues[AS726x_BLUE]);
-  Serial.print(" Green: "); Serial.print(sensorValues[AS726x_GREEN]);
-  Serial.print(" Yellow: "); Serial.print(sensorValues[AS726x_YELLOW]);
-  Serial.print(" Orange: "); Serial.print(sensorValues[AS726x_ORANGE]);
-  Serial.print(" Red: "); Serial.print(sensorValues[AS726x_RED]);
-  Serial.println();
-  Serial.println();
-}
+//   // Serial.print("Temp: "); Serial.print(temp);
+//   Serial.print(" Violet: "); Serial.print(sensorValues[AS726x_VIOLET]);
+//   Serial.print(" Blue: "); Serial.print(sensorValues[AS726x_BLUE]);
+//   Serial.print(" Green: "); Serial.print(sensorValues[AS726x_GREEN]);
+//   Serial.print(" Yellow: "); Serial.print(sensorValues[AS726x_YELLOW]);
+//   Serial.print(" Orange: "); Serial.print(sensorValues[AS726x_ORANGE]);
+//   Serial.print(" Red: "); Serial.print(sensorValues[AS726x_RED]);
+//   Serial.println();
+//   Serial.println();
+// }
 
 void readMicrophone() {
 
-  int sensorValue = analogRead(PHOTO_RESISTOR);
-  Serial.println(sensorValue);
+  // int sensorValue = digitalRead(MICROPHONE_PIN);
+  // if (sensorValue == 1) {
+  //   digitalWrite(SPEAKER_PIN, HIGH);
+  // } else {
+  //   digitalWrite(SPEAKER_PIN, LOW);
+  // }
+  // Serial.println(sensorValue);
+  int sensor = analogRead(0);
+  Serial.println(sensor);
+  Serial.println(sensor >> 2);
+  // analogWrite(3, analogRead(0) >> 2);
+}
+
+void writeMicrophone() {
+  
 }
 
 void receiverMain() {
@@ -185,8 +206,7 @@ void lookForSynchro(String bit)
   // Serial.println("Sequence: "+sequence);
   digitalWrite(READY_PIN, LOW);
 
-  if (isSync())
-  {
+  if (isSync()) {
     synchro_Done = true;  
     // Serial.println("sync done");
     sequence = "00000000000";
@@ -215,43 +235,57 @@ void receiveData(String bit)
   //   return;
   // } 
   
-  if (dataBits.length() % SYMBOL_LENGTH == 0) {
-    // char buf;
-    // Serial.println(dataBits);
+  // if (dataBits.length() % SYMBOL_LENGTH == 0) {
+  //   // char buf;
+  //   // Serial.println(dataBits);
   
-    int charIdx = binToChar(dataBits);
-    analogWrite(SPEAKER_PIN, charIdx);
-    // Serial.println(charIdx);
+  //   int charIdx = binToChar(dataBits);
+  //   analogWrite(SPEAKER_PIN, charIdx);
+  //   // Serial.println(charIdx);
 
-    int interpolate = (prevVoltage + charIdx) / 2;
-    if (interpolate != 1023 && interpolate != 0) {
-      analogWrite(SPEAKER_PIN, interpolate);
-      // Serial.println(interpolate);
-    } 
+  //   int interpolate = (prevVoltage + charIdx) / 2;
+  //   if (interpolate != 1023 && interpolate != 0) {
+  //     analogWrite(SPEAKER_PIN, interpolate);
+  //     // Serial.println(interpolate);
+  //   } 
 
-    prevVoltage = charIdx;
+  //   prevVoltage = charIdx;
     
-    // Serial.println(charIdx);
+  //   // Serial.println(charIdx);
     
-    // buf = (char) charIdx;
-    // messages[messageidx] = buf;
-    // messageidx ++;
+  //   // buf = (char) charIdx;
+  //   // messages[messageidx] = buf;
+  //   // messageidx ++;
 
-    // if (messageidx >= 7) {
-    //   messages[7] = '\0';
-    //   Serial.println(messages);
-    //   messageidx = 0;
-    // }
+  //   // if (messageidx >= 7) {
+  //   //   messages[7] = '\0';
+  //   //   Serial.println(messages);
+  //   //   messageidx = 0;
+  //   // }
 
-    dataBits = "";
-    accmuluatedLength += SYMBOL_LENGTH;
+  //   dataBits = "";
+  //   accmuluatedLength += SYMBOL_LENGTH;
+    if (dataBits.length() == PACKET_LENGTH) {
 
-    if (accmuluatedLength >= PACKET_LENGTH) {
+      int freq = binToChar(dataBits, 0, FREQUENCY_BIT);
+      int dur = binToChar(dataBits, FREQUENCY_BIT, PACKET_LENGTH);
+
+      Serial.println(freq);
+      Serial.println(dur);
+
+      int noteDuration = speed * dur;
+      // tone(MICROPHONE_PIN, freq, noteDuration*.95);
+      
+      dataBits = "";
       restartTransmit();
     }
 
+
+    // if (accmuluatedLength >= PACKET_LENGTH) {
+    //   restartTransmit();
+    // }
+
     return;
-  }
 
   if(dataBits.length()==decimalValue+16+8) //Stop dynamically at the end of the message; +16 because 2 bytes frame for data message length; +8 for last byte CRC
   {
@@ -290,6 +324,7 @@ void receiveData(String bit)
     
   }
 }
+
 void checkCRC(String dataFrame)
 {
   int polynom[9]={1,0,0,1,0,1,1,1,1};
@@ -350,9 +385,9 @@ void checkCRC(String dataFrame)
    
 }
 
-int binToChar(String binary) {
+int binToChar(String binary, int start, int end) {
   int result = 0;
-  for (int i = 0 ; i < SYMBOL_LENGTH; i++) {
+  for (int i = start ; i < end; i++) {
     result *= 2;
     if (binary[i] == '1') {
       result += 1;
