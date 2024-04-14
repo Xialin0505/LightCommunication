@@ -34,7 +34,7 @@ int noteDurations[] = {
 #define DELAYTIME 200
 #else
 #define NUMPIXELS 14
-#define DELAYTIME 50
+#define DELAYTIME 100
 #endif
 
 Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
@@ -42,6 +42,7 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 #define AUDIOPIN A2
 #define TEXT 0
 #define CYCLE 50
+
 
 char result[500] = {'1', '0', '1', '0', '0', '1', '0', '0', '1', '1', '1','1'};
 const char original[500] = {'1', '0', '1', '0', '0', '1', '0', '0', '1', '1', '1','1'};
@@ -286,8 +287,8 @@ void transmissionColor() {
         // pixels.show();
     }
     // Serial.print("\n");
-    counter = 11;
-    memcpy(result, original, sizeof(char) * 11);
+    counter = 12;
+    memcpy(result, original, sizeof(char) * 12);
     // sign0();
     // delay(10);
     pixels.clear();
@@ -337,8 +338,8 @@ void transmissionOnOff() {
         pos++;
     }
     // Serial.print("\n");
-    counter = 11;
-    memcpy(result, original, sizeof(char) * 11);
+    counter = 12;
+    memcpy(result, original, sizeof(char) * 12);
     // sign0();
     // delay(10);
     pixels.clear();
