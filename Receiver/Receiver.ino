@@ -1,4 +1,5 @@
 #include <Wire.h>
+#include <Thread.h>
 #include "Adafruit_AS726x.h"
 
 //create the object
@@ -13,20 +14,25 @@ uint16_t sensorValues[AS726x_NUM_CHANNELS];
 #define SPEAKER_PIN 8
 #define MICROPHONE_PIN 3
 #define FreqPIN A5
-#define ReadyPIN 7
+#define ReadyPIN 2
 #define DurPIN A4
 
 #define SYMBOL_LENGTH 10
 
 #define ERROR_RATE_WINDOW 2
 
-#define FREQUENCY_BIT 10
-#define DURATION_BIT 5
-#define PACKET_LENGTH 15
+#define FREQUENCY_BIT 3
+#define DURATION_BIT 3
+#define PACKET_LENGTH 6
 
 #define speed 90
 
-#define PI 3.1415926535897932384626433832795
+#define nodePin1 2
+#define nodePin2 3
+#define nodePin3 4
+#define durPin1 5
+#define durPin2 6
+#define durPin3 7
 
 //global variables
 unsigned int state;
@@ -44,7 +50,7 @@ boolean crc_check_value = false; //Flag for CRC calculation
 int accmuluatedLength = 0;
 bool startPacket = false;
 
-unsigned long delayInterval = 20;
+unsigned long delayInterval = 100;
 int baseline = 0;
 float window = 0.2;
 
@@ -52,6 +58,8 @@ int prevVoltage = 0;
 
 char messages[8];
 int messageidx = 0;
+
+bool speakerReady = false;
 
 void setup() {
 
@@ -95,7 +103,22 @@ void setup() {
   //initial State is looking for Synchronization sequence
   state = 0;
 
+  // speaker_thread.onRun(speakerCallback);
+
+  // attachInterrupt(digitalPinToInterrupt(READY_PIN), inputReady, RISING);
+
   Serial.println("set up done");
+}
+
+void inputReady() {
+  // int frequency = analogRead(FREQUENCY_PIN);
+  // int duration = analogRead(DURATION_PIN);
+
+  // Serial.println(frequency);
+  // Serial.println(duration);
+
+  // tone(SPEAKER_PIN, frequency, duration);
+  speakerReady = true;
 }
 
 
@@ -143,25 +166,6 @@ void loop() {
 //   Serial.println();
 // }
 
-void readMicrophone() {
-
-  // int sensorValue = digitalRead(MICROPHONE_PIN);
-  // if (sensorValue == 1) {
-  //   digitalWrite(SPEAKER_PIN, HIGH);
-  // } else {
-  //   digitalWrite(SPEAKER_PIN, LOW);
-  // }
-  // Serial.println(sensorValue);
-  int sensor = analogRead(0);
-  Serial.println(sensor);
-  Serial.println(sensor >> 2);
-  // analogWrite(3, analogRead(0) >> 2);
-}
-
-void writeMicrophone() {
-  
-}
-
 void receiverMain() {
   // put your main code here, to run repeatedly:
   delay(delayInterval);
@@ -171,8 +175,6 @@ void receiverMain() {
   // measure();
   // int sensorValue = ams.readBlue();
   float voltage = sensorValue;
-
-  // Serial.println(voltage);
 
   if (voltage >= baseline * (1 + window)) 
   {
@@ -273,17 +275,20 @@ void receiveData(String bit)
   //   dataBits = "";
   //   accmuluatedLength += SYMBOL_LENGTH;
     if (dataBits.length() == PACKET_LENGTH) {
+      Serial.println(dataBits);
 
       int freq = binToChar(dataBits, 0, FREQUENCY_BIT);
       int dur = binToChar(dataBits, FREQUENCY_BIT, PACKET_LENGTH);
 
       Serial.println(freq);
-      analogWrite(FreqPIN, freq);
+      // analogWrite(FreqPIN, freq);
+      freqToBin(freq);
       Serial.println(dur);
-      analogWrite(DurPIN, dur);
-      digitalWrite(ReadyPIN, HIGH);
+      // analogWrite(DurPIN, dur);
+      durToBin(dur);
+      // digitalWrite(ReadyPIN, HIGH);
 
-      int noteDuration = speed * dur;
+      // int noteDuration = speed * dur;
       // tone(MICROPHONE_PIN, freq, noteDuration*.95);
       
       dataBits = "";
@@ -437,3 +442,14 @@ bool isSync() {
   return false;
 }
 
+void durToBin(int num) {
+  digitalWrite(durPin1, num & 0x1);
+  digitalWrite(durPin2, (num & 0x2) >> 1);
+  digitalWrite(durPin3, (num & 0x4) >> 2);
+}
+
+void freqToBin(int num) {
+  digitalWrite(nodePin1, num & 0x1);
+  digitalWrite(nodePin2, (num & 0x2) >> 1);
+  digitalWrite(nodePin3, (num & 0x4) >> 2);
+}
