@@ -34,7 +34,7 @@ int noteDurations[] = {
 #define DELAYTIME 200
 #else
 #define NUMPIXELS 14
-#define DELAYTIME 100
+#define DELAYTIME 50
 #endif
 
 Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
