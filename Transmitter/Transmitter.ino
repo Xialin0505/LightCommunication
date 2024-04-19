@@ -5,7 +5,8 @@
 
 // 1 is on off key
 // 2 is color
-#define MODULATION 1
+// 3 is PWM
+#define MODULATION 3
 
 #define WS 0
 #define CC 262 
@@ -32,9 +33,12 @@ int noteDurations[] = {
 #if (MODULATION == 2)
 #define NUMPIXELS 1
 #define DELAYTIME 200
-#else
+#elif (MODULATION == 1)
 #define NUMPIXELS 14
 #define DELAYTIME 50
+#else
+#define NUMPIXELS 1
+#define DELAYTIME 40
 #endif
 
 Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
@@ -53,11 +57,13 @@ int thisNote = 0;
 
 void setup()
 {
-    if (MODULATION == 1) {
-        setupOnOff();
-    } else {
-        setupColor();
-    }
+    #if (MODULATION == 1) 
+      setupOnOff();
+    #elif (MODULATION == 2) 
+      setupColor();
+    #elif (MODULATION == 3) 
+      setupPWM();
+    #endif
 }
 
 void setupOnOff() {
@@ -79,17 +85,28 @@ void setupColor() {
     clock_prescale_set(clock_div_1);
 #endif
     pixels.begin();
-    pixels.setBrightness(100);
     pixels.clear();
-    pixels.setAllBlue();
-    pixels.setAllGreen();
+    // pixels.setAllBlue();
+    // pixels.setAllGreen();
     pixels.setAllYellow();
     pixels.setAllPurple();
+    pixels.setALLHalfYellow();
+    pixels.setALLHalfPurple();
     Serial.begin(9600);
     pinMode(AUDIOPIN, INPUT);
 }
 
-
+void setupPWM() {
+          // put your setup code here, to run once:
+#if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
+    clock_prescale_set(clock_div_1);
+#endif
+    pixels.begin();
+    pixels.clear();
+    pixels.setAllWhite();
+    Serial.begin(9600);
+    pinMode(AUDIOPIN, INPUT);
+}
 
 void chartobin(char c)
 {
@@ -114,30 +131,6 @@ void int2bin(unsigned integer, int n)
 
     result[32] = '\0';
 }
-
-uint32_t colortype(int colorindex)
-{
-}
-
-// void audiotobin() {
-//   int RUN = 0;
-//   while (RUN < CYCLE) {
-//     delay(DELAYTIME/CYCLE);
-//     int aud = analogRead(AUDIOPIN);
-//     Serial.println(aud);
-//     for (int i = 0; i < 10; i++) {
-//       result[counter] = (aud & (int)1 << (10-i-1)) ? '1' : '0';
-//       counter++;
-//     }
-//     RUN++;
-//   }
-
-//   result[(11 + CYCLE * 10)] = '\0';
-//   // char buffer[25];
-//   // sprintf(buffer,"%s", result[11]);
-//   // Serial.println(buffer);
-//   // Serial.println("%s", result[11]);
-// }
 
 void melodytobin(int i)
 {
@@ -194,31 +187,10 @@ void melodytobin(int i)
     result[12 + 6] = '\0';
 }
 
-void colorset(int colorindex)
-{
-    // for(int i=0; i<14;i++){
-    //   pixels.setPixelColor(i,colorcol[colorindex]);
-    // }
-}
-
 void signon(int colornum)
 {
-    // pixels.clear();
-    // colorset(0);
-    // for(int i=0; i<14; i++) { // For each pixel...
-    //   pixels.setPixelColor(i,pixels.Color(255, 255, 255));
-    // }
-    if(colornum ==0){
-        pixels.resetColor(0);
-    }else if(colornum ==1){
-        pixels.resetColor(1);
-    }else if(colornum ==2 ){
-        pixels.resetColor(2);
-    }else if(colornum ==3){
-        pixels.resetColor(3);
-    }else if(colornum ==4){
-        pixels.resetColor(4);
-    }
+    pixels.clear();
+    pixels.resetColor(colornum);
     pixels.show();
     return;
 }
@@ -255,37 +227,51 @@ void transmissionColor() {
 
 
     int length = strlen(result);
-    while (pos != length)
+#if (MODULATION == 2)
+        // Serial.print("\n");
+        // if (result[pos] == '0' && result[pos+1] =='0')
+        // {
+        //   Serial.print("00");
+        //   signon(1);
+        // }
+        // if (result[pos] == '0' && result[pos+1] =='1')
+        // {
+        //   Serial.print("01");
+        //   signon(6);
+        // }
+        // if (result[pos] == '1' && result[pos+1] =='0')
+        // {
+        //   Serial.print("10");
+        //   signon(4);
+        // }
+        // else if (result[pos] == '1' && result[pos+1] =='1')
+        // {
+        //   Serial.print("11");
+        //   signon(2);
+        //   // signoff();
+        // }
+#elif (MODULATION == 3)
+while (pos != length)
     {
         // signon(4);
         delay(DELAYTIME);
-        Serial.print("\n");
-        if (result[pos] == '0' && result[pos+1] =='0')
+        if (result[pos] == '1')
         {
-          Serial.print("00");
-          signon(3);
-        }
-        if (result[pos] == '0' && result[pos+1] =='1')
-        {
-          Serial.print("01");
+          // Serial.print("1");
           signon(1);
         }
-        if (result[pos] == '1' && result[pos+1] =='0')
+        else if (result[pos] == '0')
         {
-          Serial.print("10");
+          // Serial.print("0");
+        //   signon(1);
           signon(4);
         }
-        else if (result[pos] == '1' && result[pos+1] =='1')
-        {
-          Serial.print("11");
-          signon(2);
-          // signoff();
-        }
-        pos+=2;
+        pos++;
+    }
+#endif
         // delay(DELAYTIME/2);
         // pixels.clear();
         // pixels.show();
-    }
     // Serial.print("\n");
     counter = 12;
     memcpy(result, original, sizeof(char) * 12);
@@ -347,11 +333,59 @@ void transmissionOnOff() {
     // delay(1000);
 }
 
+void transmissionPWM() {
+  int pos = 0;
+
+#if TEXT
+    char *msg = {"ABCDEFG"};
+    int2bin(strlen(msg) * 8, 10);
+    for (int k = 0; k < strlen(msg); k++)
+    {
+        chartobin(msg[k]);
+    }
+#else // audio
+    // audiotobin();
+    if (newmelody[thisNote] == -1)
+    {
+        thisNote = 0;
+    }
+    melodytobin(thisNote);
+    thisNote++;
+    Serial.println(result);
+
+#endif
+
+    int length = strlen(result);
+    while (pos != length)
+    {
+        delay(DELAYTIME*0.3);
+        if (result[pos] == '1')
+        {
+          signon(0);
+          delay(DELAYTIME*0.7);
+          signoff();
+        }
+        else if (result[pos] == '0')
+        {
+          signon(0);
+          delay(DELAYTIME*0.3);
+          signoff();
+        }
+        pos++;
+    }
+    counter = 12;
+    memcpy(result, original, sizeof(char) * 12);
+    pixels.clear();
+    pixels.show();
+}
+
 void loop()
 {
-    if (MODULATION == 1) {
+    #if (MODULATION == 1) 
         transmissionOnOff();
-    } else {
+    #elif (MODULATION == 2)
         transmissionColor();
-    }
+    #else
+        transmissionPWM();
+    #endif
 }
