@@ -1,5 +1,6 @@
 #include <Wire.h>
-#include <Thread.h>
+#include <SoftwareSerial.h>
+#include <TimerOne.h> //included timer library for interrupt
 #include "Adafruit_AS726x.h"
 
 //create the object
@@ -9,21 +10,23 @@ Adafruit_AS726x ams;
 uint16_t sensorValues[AS726x_NUM_CHANNELS];
 
 // 1 for On Off Key
-// 2 for Color
-#define MODULATION_MODE 1
-#define delayIntervalOnOff 50
-#define delayIntervalColor 200
+// 2 for Color (sensor broke)
+// 3 for PWM
+#define MODULATION_MODE 3
+#define delayIntervalOnOff 35
+#define delayIntervalColor 1000
+#define timeslotPWM 50
 
 #define PHOTO_RESISTOR A0
 #define VCC 11
 #define READY_PIN 13
 #define FreqPIN A5
-#define ReadyPIN 1
+#define ReadyPIN 9
 #define DurPIN A4
 
 #define SYMBOL_LENGTH 10
 
-#define ERROR_RATE_WINDOW 2
+#define ERROR_RATE_WINDOW 0
 
 #define FREQUENCY_BIT 3
 #define DURATION_BIT 3
@@ -39,9 +42,9 @@ uint16_t sensorValues[AS726x_NUM_CHANNELS];
 #define durPin3 7
 
 #define VIOLET 1
-#define BLUE 2
-#define GREEN 3
-#define YELLOW 4
+#define HALFVIOLET 2
+#define YELLOW 3
+#define HALFYELLOW 4
 
 //global variables
 unsigned int state;
@@ -64,9 +67,11 @@ int baselineBlue = 0;
 int baselineViolet = 0;
 int baselineGreen = 0;
 int baselineYellow = 0;
-float window = 0.2;
 
-int prevVoltage = 0;
+float window = 0.2;
+int treshold = 130;
+int prev = 0;
+int onDur = 0;
 
 char messages[8];
 int messageidx = 0;
@@ -74,6 +79,7 @@ int messageidx = 0;
 void setup() {
 
   Serial.begin(9600);
+  //Serial.begin(115200);
 
   //Input Pin for the Solarplate
   pinMode(PHOTO_RESISTOR ,INPUT);
@@ -105,25 +111,12 @@ void setup() {
 
     for (int i = 0; i < 100; i++) {
       measure();
-      baselineBlue += ams.readBlue();
       baselineYellow += ams.readYellow();
       baselineViolet += ams.readViolet();
-      baselineGreen += ams.readGreen();
     }
 
-    baselineBlue = baselineBlue / 100;
     baselineYellow = baselineYellow / 100;
     baselineViolet = baselineViolet / 100;
-    baselineGreen = baselineGreen / 100;
-
-    Serial.print("blue");
-    Serial.println(baselineBlue);
-    Serial.print("green");
-    Serial.println(baselineGreen);
-    Serial.print("yellow");
-    Serial.println(baselineYellow);
-    Serial.print("violet");
-    Serial.println(baselineViolet);
   }
   
   int sum = 0;
@@ -145,8 +138,83 @@ void setup() {
 void loop() {
   if (MODULATION_MODE == 1) {
     receiverMainOnOff();
-  } else {
+  } else if (MODULATION_MODE == 2){
     receiverMainColor();
+  } else {
+    receiverMainPWM();
+  }
+}
+
+int readVoltage() {
+  int sensorValue = analogRead(PHOTO_RESISTOR);
+  float voltage = sensorValue;
+
+  if (voltage >= baseline * (1 + window)) 
+  {
+    return 1;
+  }
+
+  return 0;
+}
+
+void receiverMainPWM() {
+  if (prev == 0) {
+    // wait for the 1
+    int cur = readVoltage();
+    if (cur == 1) {
+      onDur ++;
+      prev = 1;
+    }
+  } else {
+    // wait for the 0
+    int cur = readVoltage();
+    if (cur == 0) {
+      prev = 0;
+      String data;
+      if (decodeBit(onDur) == 1) {
+        data = "1";
+      } else {
+        data = "0";
+      }
+      onDur = 0;
+      processData(data);
+    } else {
+      onDur ++;
+    }
+  }
+}
+
+int decodeBit(int onDur) {
+  // Serial.println(onDur);
+  if (onDur < treshold * (1 + window)) {
+    return 0;
+  } else {
+    return 1;
+  }
+
+  return 0;
+}
+
+int processData(String data) {
+  if (state == 0) {
+    synchro_Done = false;
+    lookForSynchro(data, 1);
+
+    if (synchro_Done == true)
+    {
+      state=1;
+      digitalWrite(READY_PIN, HIGH);
+      dataBits = "";
+    }
+  } else if (state == 1) {
+    receiveData_Done = false;
+    receiveData(data);
+
+    if (receiveData_Done == true)
+    {
+      state = 0; 
+      dataBits = "";
+    }
   }
 }
 
@@ -162,7 +230,7 @@ void measure() {
 
 void readAMS() {
   //read the device temperature
-  uint8_t temp = ams.readTemperature();
+  // uint8_t temp = ams.readTemperature();
   
   //ams.drvOn(); //uncomment this if you want to use the driver LED for readings
   ams.startMeasurement(); //begin a measurement
@@ -181,72 +249,75 @@ void readAMS() {
 
   // Serial.print("Temp: "); Serial.print(temp);
   Serial.print(" Violet: "); Serial.print(sensorValues[AS726x_VIOLET]);
-  Serial.print(" Blue: "); Serial.print(sensorValues[AS726x_BLUE]);
-  Serial.print(" Green: "); Serial.print(sensorValues[AS726x_GREEN]);
   Serial.print(" Yellow: "); Serial.print(sensorValues[AS726x_YELLOW]);
-  Serial.print(" Orange: "); Serial.print(sensorValues[AS726x_ORANGE]);
-  Serial.print(" Red: "); Serial.print(sensorValues[AS726x_RED]);
   Serial.println();
 }
 
 int decodeColor() {
   int deltaViolet = (sensorValues[AS726x_VIOLET] - baselineViolet) / baselineViolet;
-  int deltaBlue = (sensorValues[AS726x_BLUE] - baselineBlue) / baselineBlue;
   int deltaYellow = (sensorValues[AS726x_YELLOW] - baselineYellow) / baselineYellow;
-  int deltaGreen = (sensorValues[AS726x_GREEN] - baselineGreen) / baselineGreen;
-  if (deltaViolet > deltaBlue && deltaViolet > deltaYellow && deltaViolet > deltaGreen) {
+  // Serial.println(deltaViolet);
+  // Serial.println(deltaYellow);
+  if (deltaViolet > deltaYellow) {
     return VIOLET;
-  }
-  if (deltaBlue > deltaViolet && deltaBlue > deltaYellow && deltaBlue > deltaGreen) {
-    return BLUE;
-  }
-  if (deltaYellow > deltaViolet && deltaYellow > deltaBlue && deltaYellow > deltaGreen) {
-    return YELLOW;
-  }
-  if (deltaGreen > deltaViolet && deltaGreen > deltaYellow && deltaGreen > deltaBlue) {
-    return GREEN;
-  }
+  } 
 
-  return BLUE;
+  return YELLOW;
+
+  // if (deltaYellow > deltaViolet) {
+  //   return YELLOW;
+  // }
+
+  // return VIOLET;
 }
 
 void receiverMainColor() {
   delay(delayIntervalColor);
-  String data = "00";
+  // String data = "00";
 
+  // readAMS();
+  // int color = decodeColor();
+  // Serial.println(color);
+  // if (color == BLUE) {
+  //   data = "00";
+  // } else if (color == YELLOW) {
+  //   data = "01";
+  // } else if (color == VIOLET) {
+  //   data = "10";
+  // } else {
+  //   data = "11";
+  // }
+
+  String data = "0";
   readAMS();
   int color = decodeColor();
   Serial.println(color);
-  if (color == BLUE) {
-    data = "00";
-  } else if (color == YELLOW) {
-    data = "01";
-  } else if (color == VIOLET) {
-    data = "10";
+  if (color == YELLOW) {
+    data = "1";
   } else {
-    data = "11";
+    data = "0";
   }
 
-  // if (state == 0) {
-  //   synchro_Done = false;
-  //   lookForSynchro(data, 2);
+  if (state == 0) {
+    synchro_Done = false;
+    lookForSynchro(data, 1);
 
-  //   if (synchro_Done == true)
-  //   {
-  //     state=1;
-  //     digitalWrite(READY_PIN, HIGH);
-  //     dataBits = "";
-  //   }
-  // } else if (state == 1) {
-  //   receiveData_Done = false;
-  //   receiveData(data);
+    if (synchro_Done == true)
+    {
+      state=1;
+      digitalWrite(READY_PIN, HIGH);
+      dataBits = "";
+    }
+  } else if (state == 1) {
+    receiveData_Done = false;
+    receiveData(data);
 
-  //   if (receiveData_Done == true)
-  //   {
-  //     state = 0; 
-  //     dataBits = "";
-  //   }
-  // }
+    if (receiveData_Done == true)
+    {
+      state = 0; 
+      dataBits = "";
+    }
+  }
 }
 
 void receiverMainOnOff() {
@@ -293,7 +364,7 @@ void lookForSynchro(String bit, int offset)
   sequence.concat(bit);
   sequence.remove(0,offset);
 
-  // Serial.println("Sequence: "+sequence);
+  // Serial.println("Sequence: " + sequence);
   digitalWrite(READY_PIN, LOW);
 
   if (isSync()) {

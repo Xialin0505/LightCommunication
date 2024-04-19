@@ -1,6 +1,6 @@
 #define FREQUENCY_PIN A5
 #define DURATION_PIN A4
-#define READY_PIN 2
+#define READY_PIN 13
 #define SPEAKER_PIN 11
 #define SPEED 130
 #define MICROPHONE_PIN 3
