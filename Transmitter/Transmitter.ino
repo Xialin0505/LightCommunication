@@ -18,16 +18,16 @@
 #define BB 494 
 #define END -1
 
-// int melody[] = {
-//     NOTE_C4, NOTE_D4, NOTE_E4, NOTE_F4, NOTE_G4, NOTE_A4, NOTE_B4, NOTE_C3, END};
+int melody[] = {
+    CC, DD, EE, FF, GG, AA, BB, WS, END};
   
-int newmelody[] = { CC, CC, GG,GG,AA,AA,GG, WS ,FF, FF, EE, EE, DD, DD, CC, WS, GG, GG, FF, FF, EE, EE, DD, WS, GG, GG, FF, FF, EE, EE, DD, WS, CC, CC, GG, GG, AA, AA, GG, WS, FF, FF, EE, EE, DD, DD, CC, END};
+int newmelody[] = { CC, CC, GG,GG,AA,AA,GG, WS ,FF, FF, EE, EE, DD, DD, CC, WS, GG, GG, FF, FF, EE, EE, DD, WS, GG, GG, FF, FF, EE, EE, DD, WS, CC, CC, GG, GG, AA, AA, GG, WS, FF, FF, EE, EE, DD, DD, CC, WS, END};
 
 int newnoteDurations[] = {
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
 
 int noteDurations[] = {
-    4, 4, 4, 4, 4, 4, 4, 4};
+    0, 1, 2, 3, 4, 5, 6, 7};
 
 #define PIN 6
 #if (MODULATION == 2)
@@ -35,7 +35,7 @@ int noteDurations[] = {
 #define DELAYTIME 200
 #elif (MODULATION == 1)
 #define NUMPIXELS 14
-#define DELAYTIME 50
+#define DELAYTIME 30
 #else
 #define NUMPIXELS 1
 #define DELAYTIME 40
@@ -45,11 +45,14 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
 #define AUDIOPIN A2
 #define TEXT 0
-#define CYCLE 50
-
-
+#define TEST 0  // 0 test, 1 normal
+#if TEST
 char result[500] = {'1', '0', '1', '0', '0', '1', '0', '0', '1', '1', '1','1'};
 const char original[500] = {'1', '0', '1', '0', '0', '1', '0', '0', '1', '1', '1','1'};
+#else
+char result[500] = {'1', '0', '1', '0', '0', '1', '0', '0', '1', '1', '1','1','1','1','0','1','0','0'};
+const char original[500] = {'1', '0', '1', '0', '0', '1', '0', '0', '1', '1', '1','1','1','1','0','1','0','0'};
+#endif
 int counter = 12;
 uint32_t colorcol[4] = {pixels.Color(0, 0, 0, 255), pixels.Color(255, 0, 0), pixels.Color(0, 255, 0), pixels.Color(0, 0, 255)};
 int thisNote = 0;
@@ -129,7 +132,7 @@ void int2bin(unsigned integer, int n)
         counter++;
     }
 
-    result[32] = '\0';
+    result[18] = '\0';
 }
 
 void melodytobin(int i)
@@ -206,7 +209,7 @@ void transmissionColor() {
     int pos = 0;
 
 #if TEXT
-    char *msg = {"ABCDEFG"};
+    char *msg = {"110101"};
     int2bin(strlen(msg) * 8, 10);
     for (int k = 0; k < strlen(msg); k++)
     {
@@ -287,12 +290,16 @@ void transmissionOnOff() {
     int pos = 0;
 
 #if TEXT
-    char *msg = {"ABCDEFG"};
+    #if TEST
+    char *msg = {"110101"};
     int2bin(strlen(msg) * 8, 10);
     for (int k = 0; k < strlen(msg); k++)
     {
         chartobin(msg[k]);
     }
+    #else 
+    Serial.println(result);
+    #endif
 #else
     // audiotobin();
     if (newmelody[thisNote] == -1)
@@ -337,12 +344,16 @@ void transmissionPWM() {
   int pos = 0;
 
 #if TEXT
-    char *msg = {"ABCDEFG"};
+    #if TEST
+    char *msg = {"110101"};
     int2bin(strlen(msg) * 8, 10);
     for (int k = 0; k < strlen(msg); k++)
     {
         chartobin(msg[k]);
     }
+    #else 
+    // Serial.println(result);
+    #endif
 #else // audio
     // audiotobin();
     if (newmelody[thisNote] == -1)

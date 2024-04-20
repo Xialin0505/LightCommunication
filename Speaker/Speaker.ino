@@ -1,6 +1,6 @@
 #define FREQUENCY_PIN A5
 #define DURATION_PIN A4
-#define READY_PIN 13
+#define READY_PIN 4
 #define SPEAKER_PIN 11
 #define SPEED 130
 #define MICROPHONE_PIN 3
@@ -29,7 +29,8 @@ void setup() {
   Serial.begin(9600);
   pinMode(FREQUENCY_PIN, INPUT);
   pinMode(DURATION_PIN, INPUT);
-  pinMode(READY_PIN, INPUT_PULLUP);
+  // pinMode(READY_PIN, INPUT_PULLUP);
+  pinMode(READY_PIN, INPUT);
   pinMode(SPEAKER_PIN, OUTPUT);
 
   pinMode(nodePin1, INPUT);
@@ -45,10 +46,13 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  if (digitalRead(READY_PIN)) {
+    inputReady();
+  }
   // if (digitalRead(READY_PIN)) {
-  //   inputReady();
+  //   Serial.println("Ready");
   // }
-  // Serial.println(digitalRead(READY_PIN));
+    
 }
 
 void inputReady() {
