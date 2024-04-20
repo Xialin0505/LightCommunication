@@ -12,8 +12,9 @@ uint16_t sensorValues[AS726x_NUM_CHANNELS];
 // 1 for On Off Key
 // 2 for Color (sensor broke)
 // 3 for PWM
+// 
 #define MODULATION_MODE 3
-#define delayIntervalOnOff 35
+#define delayIntervalOnOff 30
 #define delayIntervalColor 1000
 #define timeslotPWM 50
 
@@ -26,7 +27,7 @@ uint16_t sensorValues[AS726x_NUM_CHANNELS];
 
 #define SYMBOL_LENGTH 10
 
-#define ERROR_RATE_WINDOW 0
+#define ERROR_RATE_WINDOW 2
 
 #define FREQUENCY_BIT 3
 #define DURATION_BIT 3
@@ -73,8 +74,14 @@ int treshold = 130;
 int prev = 0;
 int onDur = 0;
 
+int error = 0;
+int totalbit = 0;
+int testidx = -1;
+
 char messages[8];
 int messageidx = 0;
+
+String testMsg = "110100";
 
 void setup() {
 
@@ -124,13 +131,7 @@ void setup() {
     sum += analogRead(PHOTO_RESISTOR);
   }
   baseline = sum / 100;
-
-  //initial State is looking for Synchronization sequence
   state = 0;
-
-  // speaker_thread.onRun(speakerCallback);
-
-  // attachInterrupt(digitalPinToInterrupt(READY_PIN), inputReady, RISING);
 
   Serial.println("set up done");
 }
@@ -140,9 +141,111 @@ void loop() {
     receiverMainOnOff();
   } else if (MODULATION_MODE == 2){
     receiverMainColor();
-  } else {
+  } else if (MODULATION_MODE == 3){
     receiverMainPWM();
+  } else {
+    receiverMainTestPWM();
   }
+}
+
+void receiverMainTestOOK() {
+  delay(delayIntervalOnOff);
+  String data = "0";
+  int sensorValue = analogRead(PHOTO_RESISTOR);
+
+  float voltage = sensorValue;
+
+  if (voltage >= baseline * (1 + window)) 
+  {
+    data="1";
+  }
+  else
+  {
+    data="0";
+  }
+
+  if (state == 0) {
+    synchro_Done = false;
+    lookForSynchro(data, 1);
+
+    if (synchro_Done == true)
+    {
+      state=1;
+      digitalWrite(READY_PIN, HIGH);
+      dataBits = "";
+    }
+  } else if (state == 1) {
+    receiveData_Done = false;
+    receiveDataTest(data);
+
+    if (receiveData_Done == true)
+    {
+      state = 0; 
+      dataBits = "";
+    }
+  }
+}
+
+void receiverMainTestPWM() {
+    if (prev == 0) {
+    // wait for the 1
+    int cur = readVoltage();
+    if (cur == 1) {
+      onDur ++;
+      prev = 1;
+    }
+  } else {
+    // wait for the 0
+    int cur = readVoltage();
+    if (cur == 0) {
+      prev = 0;
+      String data;
+      if (decodeBit(onDur) == 1) {
+        data = "1";
+      } else {
+        data = "0";
+      }
+      onDur = 0;
+      processDataTest(data);
+    } else {
+      onDur ++;
+    }
+  }
+}
+
+void receiveDataTest(String bit) {
+  dataBits.concat(bit);
+
+  if (dataBits.length() == PACKET_LENGTH) {
+    // Serial.println(dataBits);
+
+    error += measureBitError(dataBits);
+    totalbit += PACKET_LENGTH;
+    
+    Serial.print("error rate ");
+    Serial.println(((float)error / (float)totalbit) * 100);
+
+    dataBits = "";
+    restartTransmit();
+  }
+
+  return;
+}
+
+int measureBitError(String input) {
+  int numError = 0;
+  // Serial.println(input);
+  // Serial.println(testMsg);
+
+  for (int i = 0; i < 6; i++) {
+    char s_ind = input[i];
+    char p_ind = testMsg[i];
+    if (s_ind != p_ind) {
+      numError ++;
+    }
+  }
+
+  return numError;
 }
 
 int readVoltage() {
@@ -193,6 +296,29 @@ int decodeBit(int onDur) {
   }
 
   return 0;
+}
+
+int processDataTest(String data) {
+  if (state == 0) {
+    synchro_Done = false;
+    lookForSynchro(data, 1);
+
+    if (synchro_Done == true)
+    {
+      state=1;
+      digitalWrite(READY_PIN, HIGH);
+      dataBits = "";
+    }
+  } else if (state == 1) {
+    receiveData_Done = false;
+    receiveDataTest(data);
+
+    if (receiveData_Done == true)
+    {
+      state = 0; 
+      dataBits = "";
+    }
+  }
 }
 
 int processData(String data) {
@@ -378,6 +504,30 @@ void receiveData(String bit)
 {
   dataBits.concat(bit);
 
+  if (dataBits.length() == PACKET_LENGTH) {
+    Serial.println(dataBits);
+
+    int freq = binToChar(dataBits, 0, FREQUENCY_BIT);
+    int dur = binToChar(dataBits, FREQUENCY_BIT, PACKET_LENGTH);
+
+    Serial.println(freq);
+    // analogWrite(FreqPIN, freq);
+    freqToBin(freq);
+    Serial.println(dur);
+    // analogWrite(DurPIN, dur);
+    durToBin(dur);
+
+    digitalWrite(ReadyPIN, HIGH);
+    // Serial.println("ready");
+    // Serial.println(digitalRead(ReadyPIN));
+    
+    
+    dataBits = "";
+    restartTransmit();
+  }
+
+  return;
+
   // if (dataBits.length() == 16)
   // {
   //   // Serial.println("data Bits: " + dataBits);
@@ -426,70 +576,43 @@ void receiveData(String bit)
 
   //   dataBits = "";
   //   accmuluatedLength += SYMBOL_LENGTH;
-    if (dataBits.length() == PACKET_LENGTH) {
-      Serial.println(dataBits);
 
-      int freq = binToChar(dataBits, 0, FREQUENCY_BIT);
-      int dur = binToChar(dataBits, FREQUENCY_BIT, PACKET_LENGTH);
+  // if(dataBits.length()==decimalValue+16+8) //Stop dynamically at the end of the message; +16 because 2 bytes frame for data message length; +8 for last byte CRC
+  // {
 
-      Serial.println(freq);
-      // analogWrite(FreqPIN, freq);
-      freqToBin(freq);
-      Serial.println(dur);
-      // analogWrite(DurPIN, dur);
-      durToBin(dur);
-      digitalWrite(ReadyPIN, HIGH);
+  //   if (crc_check_value==false) //do the CRC check
+  //   {
+  //     checkCRC(dataBits);  
+  //   }
 
-      // int noteDuration = speed * dur;
-      // tone(MICROPHONE_PIN, freq, noteDuration*.95);
-      
-      dataBits = "";
-      restartTransmit();
-    }
-
-
-    // if (accmuluatedLength >= PACKET_LENGTH) {
-    //   restartTransmit();
-    // }
-
-    return;
-
-  if(dataBits.length()==decimalValue+16+8) //Stop dynamically at the end of the message; +16 because 2 bytes frame for data message length; +8 for last byte CRC
-  {
-
-    if (crc_check_value==false) //do the CRC check
-    {
-      checkCRC(dataBits);  
-    }
-
-    if (crc_check_value==true) //only show message when not corrupted
-    {
-      //Converting the Bits to Text here
-      String output = "";
-      for(int i = 2; i < (dataBits.length()/8)-1; i++) //first 2 bytes are for the data length and have no msg data; -1 because last Byte is for CRC and has no message data
-      {
-          String pl = "";
-          for(int l = i*8; l < 8*(i+1); l++){ 
-              pl += dataBits[l];
-          }    
+  //   if (crc_check_value==true) //only show message when not corrupted
+  //   {
+  //     //Converting the Bits to Text here
+  //     String output = "";
+  //     for(int i = 2; i < (dataBits.length()/8)-1; i++) //first 2 bytes are for the data length and have no msg data; -1 because last Byte is for CRC and has no message data
+  //     {
+  //         String pl = "";
+  //         for(int l = i*8; l < 8*(i+1); l++){ 
+  //             pl += dataBits[l];
+  //         }    
           
-          int n = 0;
-          for(int j = 0; j < 8; j++)
-          {
-              int x = (int)(pl[j])-(int)'0';
-              for(int k = 0; k < 7-j; k++)  x *= 2;
-              n += x;
-          }
-          output += (char)n;
-      }
-      Serial.println(output);
+  //         int n = 0;
+  //         for(int j = 0; j < 8; j++)
+  //         {
+  //             int x = (int)(pl[j])-(int)'0';
+  //             for(int k = 0; k < 7-j; k++)  x *= 2;
+  //             n += x;
+  //         }
+  //         output += (char)n;
+  //     }
+  //     Serial.println(output);
     
-      dataBits="";
-      receiveData_Done=true; 
-      crc_check_value=false;
-    }
+  //     dataBits="";
+  //     receiveData_Done=true; 
+  //     crc_check_value=false;
+  //   }
     
-  }
+  // }
 }
 
 void checkCRC(String dataFrame)
